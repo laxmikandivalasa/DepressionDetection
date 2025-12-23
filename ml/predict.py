@@ -65,9 +65,9 @@ class DepressionDetector:
         logits = outputs.logits
         probs = torch.softmax(logits, dim=1)
         
-        # Get prediction
-        prediction_idx = probs.argmax().item()
-        confidence = probs.max().item()
+        # Get prediction (handle batch dimension properly)
+        prediction_idx = probs.argmax(dim=1).item()
+        confidence = probs.max(dim=1).values.item()
         
         # Map to labels
         label = "Depressed" if prediction_idx == 1 else "Non-Depressed"
@@ -76,10 +76,10 @@ class DepressionDetector:
             'label': label,
             'confidence': float(confidence),
             'probabilities': {
-                'Non-Depressed': float(probs[0][0]),
-                'Depressed': float(probs[0][1])
+                'Non-Depressed': float(probs[0][0].item()),
+                'Depressed': float(probs[0][1].item())
             },
-            'is_crisis': float(probs[0][1]) > 0.85  # High threshold for crisis
+            'is_crisis': float(probs[0][1].item()) > 0.85  # High threshold for crisis
         }
         
         # Add attention weights if requested
@@ -90,9 +90,16 @@ class DepressionDetector:
             # Get tokens
             tokens = self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
             
+            # Handle attention shape - it might be 2D (seq_len, seq_len) or 1D (seq_len,)
+            if len(attention.shape) == 2:
+                # Take diagonal or mean across second dimension
+                attention_scores = attention.mean(axis=0)
+            else:
+                attention_scores = attention
+            
             # Create token-attention pairs
             token_attention = [
-                {'token': token, 'attention': float(attention[i])}
+                {'token': token, 'attention': float(attention_scores[i])}
                 for i, token in enumerate(tokens)
                 if token not in ['[CLS]', '[SEP]', '[PAD]']
             ]
@@ -123,53 +130,127 @@ class DepressionDetector:
     
     def get_emotion_breakdown(self, text):
         """
-        Get detailed emotion analysis (placeholder for future enhancement)
+        Get detailed emotion analysis with multiple emotion categories
         
         Args:
             text (str): Input text
         
         Returns:
-            dict: Emotion breakdown
+            dict: Comprehensive emotion breakdown
         """
-        # This is a simplified version
-        # In production, you could use a multi-label emotion classifier
-        
         prediction = self.predict(text)
+        text_lower = text.lower()
         
-        # Simple keyword-based emotion detection (can be enhanced)
+        # Enhanced emotion categories with more comprehensive keywords
         emotions = {
             'sadness': 0.0,
             'anxiety': 0.0,
             'anger': 0.0,
             'hopelessness': 0.0,
-            'loneliness': 0.0
+            'loneliness': 0.0,
+            'fear': 0.0,
+            'guilt': 0.0,
+            'joy': 0.0,
+            'contentment': 0.0,
+            'excitement': 0.0
         }
         
-        text_lower = text.lower()
+        # Comprehensive keyword dictionaries with intensity weights
+        emotion_keywords = {
+            'sadness': {
+                'high': ['devastated', 'heartbroken', 'miserable', 'despair', 'anguish'],
+                'medium': ['sad', 'unhappy', 'depressed', 'down', 'blue', 'crying', 'tears'],
+                'low': ['disappointed', 'upset', 'gloomy', 'melancholy']
+            },
+            'anxiety': {
+                'high': ['panic', 'terrified', 'overwhelmed', 'paralyzed'],
+                'medium': ['anxious', 'worried', 'nervous', 'stressed', 'tense'],
+                'low': ['uneasy', 'concerned', 'restless', 'jittery']
+            },
+            'anger': {
+                'high': ['furious', 'enraged', 'livid', 'outraged'],
+                'medium': ['angry', 'mad', 'frustrated', 'irritated', 'annoyed'],
+                'low': ['bothered', 'displeased', 'agitated']
+            },
+            'hopelessness': {
+                'high': ['hopeless', 'worthless', 'suicidal', 'no point'],
+                'medium': ['pointless', 'meaningless', 'give up', 'cant go on'],
+                'low': ['discouraged', 'defeated', 'lost']
+            },
+            'loneliness': {
+                'high': ['completely alone', 'abandoned', 'isolated'],
+                'medium': ['lonely', 'alone', 'nobody cares', 'no one'],
+                'low': ['disconnected', 'withdrawn', 'distant']
+            },
+            'fear': {
+                'high': ['terrified', 'petrified', 'horrified'],
+                'medium': ['scared', 'afraid', 'frightened', 'fearful'],
+                'low': ['worried', 'apprehensive', 'nervous']
+            },
+            'guilt': {
+                'high': ['ashamed', 'humiliated', 'mortified'],
+                'medium': ['guilty', 'regret', 'sorry', 'fault'],
+                'low': ['embarrassed', 'uncomfortable']
+            },
+            'joy': {
+                'high': ['ecstatic', 'thrilled', 'overjoyed', 'elated'],
+                'medium': ['happy', 'joyful', 'cheerful', 'delighted'],
+                'low': ['pleased', 'glad', 'satisfied']
+            },
+            'contentment': {
+                'high': ['peaceful', 'serene', 'blissful'],
+                'medium': ['content', 'calm', 'relaxed', 'comfortable'],
+                'low': ['okay', 'fine', 'alright']
+            },
+            'excitement': {
+                'high': ['amazing', 'incredible', 'fantastic', 'wonderful'],
+                'medium': ['excited', 'enthusiastic', 'eager', 'great'],
+                'low': ['interested', 'curious', 'hopeful']
+            }
+        }
         
-        # Sadness keywords
-        if any(word in text_lower for word in ['sad', 'cry', 'tears', 'depressed', 'down']):
-            emotions['sadness'] = 0.7
+        # Calculate emotion scores based on keyword presence and intensity
+        for emotion, intensity_dict in emotion_keywords.items():
+            score = 0.0
+            for intensity, keywords in intensity_dict.items():
+                weight = {'high': 1.0, 'medium': 0.6, 'low': 0.3}[intensity]
+                matches = sum(1 for keyword in keywords if keyword in text_lower)
+                score += matches * weight
+            
+            # Normalize score to 0-1 range
+            emotions[emotion] = min(1.0, score / 2.0)
         
-        # Anxiety keywords
-        if any(word in text_lower for word in ['anxious', 'worry', 'nervous', 'scared', 'fear']):
-            emotions['anxiety'] = 0.6
+        # Adjust based on depression prediction
+        if prediction['label'] == 'Depressed':
+            # Boost negative emotions
+            for emotion in ['sadness', 'anxiety', 'hopelessness', 'loneliness']:
+                emotions[emotion] = min(1.0, emotions[emotion] + prediction['confidence'] * 0.3)
+            # Reduce positive emotions
+            for emotion in ['joy', 'contentment', 'excitement']:
+                emotions[emotion] = max(0.0, emotions[emotion] - prediction['confidence'] * 0.2)
         
-        # Anger keywords
-        if any(word in text_lower for word in ['angry', 'hate', 'furious', 'mad']):
-            emotions['anger'] = 0.5
+        # Calculate overall mood score (0-10 scale)
+        positive_score = (emotions['joy'] + emotions['contentment'] + emotions['excitement']) / 3
+        negative_score = (emotions['sadness'] + emotions['anxiety'] + emotions['hopelessness'] + 
+                         emotions['loneliness'] + emotions['fear'] + emotions['guilt']) / 6
         
-        # Hopelessness keywords
-        if any(word in text_lower for word in ['hopeless', 'pointless', 'give up', 'no point']):
-            emotions['hopelessness'] = 0.8
+        mood_score = (positive_score - negative_score + 1) * 5  # Convert to 0-10 scale
+        mood_score = max(0, min(10, mood_score))
         
-        # Loneliness keywords
-        if any(word in text_lower for word in ['alone', 'lonely', 'isolated', 'nobody']):
-            emotions['loneliness'] = 0.7
+        # Determine dominant emotions (top 3)
+        sorted_emotions = sorted(emotions.items(), key=lambda x: x[1], reverse=True)
+        dominant_emotions = [
+            {'emotion': emotion, 'intensity': round(score, 2)}
+            for emotion, score in sorted_emotions[:3]
+            if score > 0.1
+        ]
         
         return {
             'primary_prediction': prediction,
-            'emotions': emotions
+            'emotions': emotions,
+            'mood_score': round(mood_score, 1),
+            'dominant_emotions': dominant_emotions,
+            'sentiment': 'positive' if mood_score > 6 else 'negative' if mood_score < 4 else 'neutral'
         }
 
 

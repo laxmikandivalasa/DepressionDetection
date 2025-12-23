@@ -65,6 +65,48 @@
                 </div>
             </div>
             
+            <!-- Emotion Breakdown -->
+            <div class="glass-card fade-in delay-200" style="margin-bottom: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0;">Emotion Breakdown</h3>
+                    <div id="mood-score-badge" style="padding: 0.5rem 1rem; background: var(--primary); border-radius: var(--radius-lg); font-weight: 600;">
+                        Mood: <span id="mood-score">--</span>/10
+                    </div>
+                </div>
+                
+                <div id="emotion-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <!-- Emotion bars will be injected here -->
+                </div>
+                
+                <div id="dominant-emotions" style="margin-top: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-md);">
+                    <strong>Dominant Emotions:</strong> <span id="dominant-list">--</span>
+                </div>
+            </div>
+            
+            <!-- Analysis Settings -->
+            <div class="glass-card fade-in delay-300" style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 1rem;">Analysis Settings</h3>
+                <div style="display: grid; gap: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 1rem; cursor: pointer;">
+                        <input type="checkbox" id="show-attention" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <span>Show word impact visualization</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 1rem; cursor: pointer;">
+                        <input type="checkbox" id="show-emotions" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <span>Show detailed emotion breakdown</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 1rem; cursor: pointer;">
+                        <input type="checkbox" id="auto-save" style="width: 20px; height: 20px; cursor: pointer;">
+                        <span>Automatically save to journal</span>
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span>Sensitivity:</span>
+                        <input type="range" id="sensitivity" min="0" max="100" value="50" style="flex: 1;">
+                        <span id="sensitivity-value">50%</span>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Actions -->
             <div style="display: flex; gap: 1rem; justify-content: center;">
                 <button onclick="saveToJournal()" class="btn btn-outline">
@@ -112,10 +154,18 @@
             const data = await App.api.post('/analysis/analyze', { text });
             lastAnalysisResult = data.result;
             
-            displayResults(data.result);
+            // Also fetch emotion breakdown
+            const emotionData = await App.api.post('/analysis/emotion-breakdown', { text });
+            
+            displayResults(data.result, emotionData.breakdown);
             App.ui.hideLoading(btn);
             resultsSection.classList.remove('hidden');
             resultsSection.scrollIntoView({ behavior: 'smooth' });
+            
+            // Auto-save if enabled
+            if (document.getElementById('auto-save').checked) {
+                setTimeout(() => saveToJournal(), 500);
+            }
             
         } catch (error) {
             App.ui.toast(error.message, 'error');
@@ -123,7 +173,7 @@
         }
     }
     
-    function displayResults(result) {
+    function displayResults(result, emotionBreakdown) {
         const isDepressed = result.label === 'Depressed';
         const confidence = Math.round(result.confidence * 100);
         
@@ -155,20 +205,26 @@
             crisisAlert.classList.add('hidden');
         }
         
-        // Visualization (Simple highlighting based on basic attention logic for demo)
-        // In a real implementation, we'd map tokens back to the original text properly
+        // Word Impact Visualization
+        if (document.getElementById('show-attention').checked) {
+            displayAttention(result, isDepressed);
+        }
+        
+        // Emotion Breakdown
+        if (document.getElementById('show-emotions').checked && emotionBreakdown) {
+            displayEmotionBreakdown(emotionBreakdown);
+        }
+    }
+    
+    function displayAttention(result, isDepressed) {
         const visContainer = document.getElementById('attention-visualization');
         visContainer.innerHTML = '';
         
-        // Mock visualization logic if attention data is missing or complex to map 1:1 in frontend
-        // If the API returns attention tokens, we display them
         if (result.attention && result.attention.length > 0) {
             let html = '';
-            // Basic display of top words
             result.attention.forEach(item => {
-                // Remove ## from subwords
                 const word = item.token.replace('##', '');
-                const intensity = item.attention * 5; // Scale for visual
+                const intensity = item.attention * 5;
                 const color = isDepressed ? `rgba(245, 158, 11, ${Math.min(intensity, 0.8)})` : `rgba(16, 185, 129, ${Math.min(intensity, 0.8)})`;
                 
                 html += `<span style="display: inline-block; padding: 2px 6px; margin: 3px; background: ${color}; border-radius: 4px;">${word}</span> `;
@@ -178,6 +234,86 @@
             visContainer.textContent = lastText;
         }
     }
+    
+    function displayEmotionBreakdown(breakdown) {
+        // Mood Score
+        const moodScore = breakdown.mood_score || 5;
+        document.getElementById('mood-score').textContent = moodScore;
+        const moodBadge = document.getElementById('mood-score-badge');
+        if (moodScore >= 7) {
+            moodBadge.style.background = 'var(--success)';
+        } else if (moodScore >= 4) {
+            moodBadge.style.background = 'var(--primary)';
+        } else {
+            moodBadge.style.background = 'var(--warning)';
+        }
+        
+        // Emotion Grid
+        const emotionGrid = document.getElementById('emotion-grid');
+        emotionGrid.innerHTML = '';
+        
+        const emotionColors = {
+            'sadness': '#6366f1',
+            'anxiety': '#8b5cf6',
+            'anger': '#ef4444',
+            'hopelessness': '#dc2626',
+            'loneliness': '#7c3aed',
+            'fear': '#f59e0b',
+            'guilt': '#ec4899',
+            'joy': '#10b981',
+            'contentment': '#14b8a6',
+            'excitement': '#06b6d4'
+        };
+        
+        if (breakdown.emotions) {
+            Object.entries(breakdown.emotions).forEach(([emotion, value]) => {
+                const percentage = Math.round(value * 100);
+                const color = emotionColors[emotion] || '#6366f1';
+                
+                const emotionCard = `
+                    <div style="padding: 1rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-md);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="text-transform: capitalize; font-weight: 500;">${emotion}</span>
+                            <span style="color: ${color};">${percentage}%</span>
+                        </div>
+                        <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; background: ${color}; width: ${percentage}%; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                `;
+                emotionGrid.innerHTML += emotionCard;
+            });
+        }
+        
+        // Dominant Emotions
+        if (breakdown.dominant_emotions && breakdown.dominant_emotions.length > 0) {
+            const dominantText = breakdown.dominant_emotions
+                .map(e => `${e.emotion} (${Math.round(e.intensity * 100)}%)`)
+                .join(', ');
+            document.getElementById('dominant-list').textContent = dominantText;
+        }
+    }
+    
+    // Settings event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        const sensitivitySlider = document.getElementById('sensitivity');
+        const sensitivityValue = document.getElementById('sensitivity-value');
+        
+        sensitivitySlider.addEventListener('input', (e) => {
+            sensitivityValue.textContent = e.target.value + '%';
+        });
+        
+        // Toggle visibility
+        document.getElementById('show-attention').addEventListener('change', (e) => {
+            document.querySelector('#attention-visualization').closest('.glass-card').style.display = 
+                e.target.checked ? 'block' : 'none';
+        });
+        
+        document.getElementById('show-emotions').addEventListener('change', (e) => {
+            document.querySelector('#emotion-grid').closest('.glass-card').style.display = 
+                e.target.checked ? 'block' : 'none';
+        });
+    });
     
     async function saveToJournal() {
         if (!lastText) return;

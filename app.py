@@ -41,7 +41,7 @@ def create_app(config_name='default'):
     @app.route('/')
     def index():
         return render_template('index.html')
-    
+
     @app.route('/dashboard')
     def dashboard():
         return render_template('dashboard.html')
@@ -83,6 +83,9 @@ def create_app(config_name='default'):
         
     @app.errorhandler(500)
     def server_error(e):
+        import traceback
+        with open('error.log', 'w') as f:
+            traceback.print_exc(file=f)
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Internal server error'}), 500
         return render_template('500.html'), 500
@@ -93,7 +96,18 @@ def create_app(config_name='default'):
         
     return app
 
-app = create_app(os.getenv('FLASK_ENV', 'default'))
+flask_app = create_app(os.getenv('FLASK_ENV', 'default'))
+
+# ASGI wrapper for uvicorn compatibility
+try:
+    from asgiref.wsgi import WsgiToAsgi
+    app = WsgiToAsgi(flask_app)
+    asgi_app = app  # Alias for compatibility
+except ImportError:
+    # If asgiref not available, just use the Flask app directly
+    # This will work with Flask dev server but not with uvicorn
+    app = flask_app
+    asgi_app = flask_app
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    flask_app.run(host='0.0.0.0', port=5000)

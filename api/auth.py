@@ -30,8 +30,17 @@ def register():
     
     return jsonify({'message': 'Registration successful', 'user_id': user.id}), 201
 
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    # Handle GET request (redirect from @login_required)
+    if request.method == 'GET':
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this resource',
+            'redirect': '/login'
+        }), 401
+    
+    # Handle POST request (actual login)
     data = request.get_json()
     
     if not data or not data.get('email') or not data.get('password'):

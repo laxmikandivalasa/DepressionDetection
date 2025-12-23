@@ -29,3 +29,6 @@ seaborn>=0.12.0
 
 # Development
 pytest>=7.4.0
+
+# ASGI Support
+asgiref>=3.7.0

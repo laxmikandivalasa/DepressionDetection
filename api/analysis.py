@@ -67,8 +67,22 @@ def analyze_text():
             'analysis_id': analysis.id
         })
         
+    except FileNotFoundError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Model not found',
+            'message': 'The AI model needs to be trained first. Please run train_model.py',
+            'details': str(e)
+        }), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Analysis failed',
+            'message': str(e),
+            'type': type(e).__name__
+        }), 500
 
 @analysis_bp.route('/history', methods=['GET'])
 @login_required
@@ -112,3 +126,31 @@ def get_timeline():
             'depression_prob': e.depression_probability
         } for e in entries]
     })
+
+@analysis_bp.route('/emotion-breakdown', methods=['POST'])
+@login_required
+def get_emotion_breakdown():
+    """Get detailed emotion analysis with multiple categories"""
+    data = request.get_json()
+    
+    if not data or not data.get('text'):
+        return jsonify({'error': 'No text provided'}), 400
+    
+    text = data['text']
+    
+    try:
+        detector = get_detector()
+        breakdown = detector.get_emotion_breakdown(text)
+        
+        return jsonify({
+            'breakdown': breakdown,
+            'timestamp': datetime.datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Emotion analysis failed',
+            'message': str(e)
+        }), 500
