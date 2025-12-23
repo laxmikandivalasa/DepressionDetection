@@ -175,6 +175,34 @@ const App = {
     }
 };
 
+// Mobile Menu Toggle
+function toggleMobileMenu() {
+    const navLinks = document.querySelector('.nav-links');
+    const toggle = document.querySelector('.mobile-menu-toggle');
+    
+    navLinks.classList.toggle('active');
+    toggle.classList.toggle('active');
+    
+    // Prevent body scroll when menu is open
+    if (navLinks.classList.contains('active')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+    }
+}
+
+// Close mobile menu when clicking on a link
+document.addEventListener('click', (e) => {
+    const navLinks = document.querySelector('.nav-links');
+    const toggle = document.querySelector('.mobile-menu-toggle');
+    
+    if (e.target.classList.contains('nav-link') && navLinks.classList.contains('active')) {
+        navLinks.classList.remove('active');
+        toggle.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
 });
