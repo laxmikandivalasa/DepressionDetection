@@ -29,7 +29,7 @@ class DepressionDetector:
         
         print(f"Loading model from: {self.model_path}")
         self.tokenizer = DistilBertTokenizer.from_pretrained(self.model_path)
-        self.model = DistilBertForSequenceClassification.from_pretrained(self.model_path)
+        self.model = DistilBertForSequenceClassification.from_pretrained(self.model_path,attn_implementation="eager")
         self.model.to(self.device)
         self.model.eval()
         print(f"Model loaded successfully on {self.device}")
@@ -83,7 +83,7 @@ class DepressionDetector:
         }
         
         # Add attention weights if requested
-        if return_attention and outputs.attentions is not None:
+        if return_attention and hasattr(outputs, "attentions") and outputs.attentions:
             # Get attention from last layer, average across heads
             attention = outputs.attentions[-1].mean(dim=1).squeeze().cpu().numpy()
             
