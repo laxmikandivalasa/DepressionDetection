@@ -67,3 +67,76 @@ The platform provides real-time analysis, emotional tracking, private journaling
 ```bash
 git clone https://github.com/yourusername/mindwatch.git
 cd mindwatch
+```
+### 2️⃣ Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+**Windows**
+```bash
+venv\Scripts\activate
+```
+
+**Mac/Linux**
+```bash
+source venv/bin/activate
+```
+
+### 3️⃣ Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4️⃣ Environment Variables (Optional)
+
+```bash
+cp .env.example .env
+```
+
+---
+
+## 🧠 Model Setup
+
+Before running the application, train the model:
+
+```bash
+python ml/train_model.py
+```
+---
+
+## 🏃 Running the Application
+
+Start the Flask server:
+
+```bash
+python app.py
+```
+
+Then open in your browser:
+
+```
+http://localhost:5000
+```
+
+---
+
+## 🧪 Testing
+
+| Scenario | Example Input |
+|----------|--------------|
+| Positive Mood | "I feel great today!" |
+| Negative Mood | "I feel hopeless." |
+| Crisis Detection | "I want to end it all." |
+| Anonymous Mode | Login via Anonymous Mode |
+
+---
+
+
+
+## 📄 License
+
+This project is for educational purposes only.  
+Ensure compliance with API and dataset licensing terms before public deployment.
