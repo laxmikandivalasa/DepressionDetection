@@ -50,7 +50,7 @@ def compute_metrics(pred):
 
 
 def train_model(
-    dataset_path='data/sample_dataset.csv',
+    dataset_path='data/dataset2.csv',
     model_name='distilbert-base-uncased',
     output_dir='models/distilbert_depression',
     num_epochs=3,
@@ -159,13 +159,13 @@ if __name__ == '__main__':
     # Create sample dataset if it doesn't exist
     from ml.data_preprocessing import create_sample_dataset
     
-    if not os.path.exists('data/sample_dataset.csv'):
+    if not os.path.exists('data/dataset2.csv'):
         print("Creating sample dataset...")
         create_sample_dataset()
     
     # Train model
     trainer, results = train_model(
-        dataset_path='data/sample_dataset.csv',
+        dataset_path='data/dataset2.csv',
         num_epochs=3,
         batch_size=8  # Smaller batch size for demo data
     )

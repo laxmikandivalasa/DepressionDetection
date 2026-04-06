@@ -63,34 +63,35 @@
     </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        App.ui.showLoading(btn);
-        
-        try {
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            
-            await App.api.post('/auth/login', data);
-            App.ui.toast('Login successful', 'success');
-            window.location.href = '/dashboard';
-        } catch (error) {
-            App.ui.toast(error.message, 'error');
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    App.ui.showLoading(btn);
+
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await App.api.post('/auth/login', data);
+
+        // 🔴 If backend sends error
+        if (response.error) {
+            App.ui.toast(response.error, 'error');
             App.ui.hideLoading(btn);
+            return;
         }
-    });
-    
-    document.getElementById('anon-login').addEventListener('click', async () => {
-        try {
-            await App.api.post('/auth/anonymous');
-            window.location.href = '/dashboard';
-        } catch (error) {
-            App.ui.toast(error.message, 'error');
-        }
-    });
+
+        App.ui.toast('Login successful', 'success');
+        window.location.href = '/dashboard';
+
+    } catch (error) {
+        // 🔴 Always show popup if something fails
+        alert("Invalid email or password");
+        App.ui.hideLoading(btn);
+    }
+});
 </script>
 {% endblock %}
